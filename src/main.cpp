@@ -8,9 +8,7 @@
 #define DISPLAY_WIDTH 255
 #define DISPLAY_HEIGHT 64
 #define LINES_ON_SCREEN 12
-#define NUMBER_OF_STARS 5
-#define FONT_HEIGHT 8
-#define FONT_WIDTH 5
+#define NUMBER_OF_STARS 8
 
 #define SCL_PIN 4  // clock pin
 #define SDA_PIN 5  // data pin, MOSI pin
@@ -54,13 +52,15 @@ int timer = 0;
 const char *kAnimationFrames[] = {"    /|\\    ", "   / | \\   ", "  /  |  \\  ", " /   |   \\ ", "/    |    \\", "\\    |    /", " \\   |   / ", "  \\  |  /  ", "   \\ | /   ", "    \\|/    ", "     X     "};
 const int kTotalAnimationFrames = sizeof(kAnimationFrames) / sizeof(kAnimationFrames[0]);
 const int kFontHeight = 8 - 2;
+const int kFontWidth = 5 - 1;
+
 int speedStage = 3;
 const char *kSpeedStageFrames[] = {"[______]", "[#_____]", "[##____]", "[###___]", "[####__]", "[#####_]", "[######]"};
 
 FallingStar stars[NUMBER_OF_STARS][LINES_ON_SCREEN] = {};
 bool isPressing = false;
 bool isRandomPattern = false;
-int mutationChance = 10;
+int mutationChance = 5;
 
 void setup()
 {
@@ -93,13 +93,13 @@ void loop()
   // u8g2.setFont(u8g2_font_5x8_tf); compact 5x8; 7 lines in 64px
   // u8g2.setFont(u8g2_font_courR08_tf); good but bigger 7x11
   // u8g2.setFont(u8g2_font_6x10_tf); 6x10
+  // unsigned long timerStart = millis();
 
   u8g2.clearBuffer();
-  
 
   if (isRandomPattern)
   {
-    if (timer % kFontHeight != 0)
+    if (timer % kFontHeight == 0)
     {
       // push the stars down
       for (int i = 0; i < NUMBER_OF_STARS; i++)
@@ -110,83 +110,51 @@ void loop()
           stars[i][j].position = stars[i][j + 1].position;
         }
       };
-      
+
       // make new stars below
       for (int i = 0; i < NUMBER_OF_STARS; i++)
       {
         FallingStar &previousStar = stars[i][LINES_ON_SCREEN - 1];
 
+        if (random() % 101 < mutationChance)
+        {
+          switch (random() % 3)
+          {
+          case 0:
+            stars[i][LINES_ON_SCREEN - 1].direction = LEFT;
+            break;
+          case 1:
+            stars[i][LINES_ON_SCREEN - 1].direction = DOWN;
+            break;
+          default:
+            stars[i][LINES_ON_SCREEN - 1].direction = RIGHT;
+          }
+        }
+
         switch (previousStar.direction)
         {
         case LEFT:
-          stars[i][LINES_ON_SCREEN - 1].position--;
+          stars[i][LINES_ON_SCREEN - 1].position -= kFontWidth;
           if (stars[i][LINES_ON_SCREEN - 1].position < 0)
           {
             stars[i][LINES_ON_SCREEN - 1].position = 0;
             stars[i][LINES_ON_SCREEN - 1].direction = RIGHT;
+            break;
           }
-          else
-          {
-            if (random() % 101 < mutationChance)
-            {
-              if (random() % 2 == 0)
-              {
-                stars[i][LINES_ON_SCREEN - 1].direction = DOWN;
-              }
-              else
-              {
-                stars[i][LINES_ON_SCREEN - 1].direction = RIGHT;
-              }
-            }
-            else
-            {
-              stars[i][LINES_ON_SCREEN - 1].direction = previousStar.direction;
-            }
-          }
+          stars[i][LINES_ON_SCREEN - 1].direction = previousStar.direction;
           break;
         case RIGHT:
-          stars[i][LINES_ON_SCREEN - 1].position++;
-          if (stars[i][LINES_ON_SCREEN - 1].position > DISPLAY_WIDTH - 5)
+          stars[i][LINES_ON_SCREEN - 1].position += kFontWidth;
+          if (stars[i][LINES_ON_SCREEN - 1].position > DISPLAY_WIDTH - kFontWidth)
           {
-            stars[i][LINES_ON_SCREEN - 1].position--;
+            stars[i][LINES_ON_SCREEN - 1].position -= kFontWidth;
             stars[i][LINES_ON_SCREEN - 1].direction = LEFT;
+            break;
           }
-          else
-          {
-            if (random() % 101 < mutationChance)
-            {
-              if (random() % 2 == 0)
-              {
-                stars[i][LINES_ON_SCREEN - 1].direction = DOWN;
-              }
-              else
-              {
-                stars[i][LINES_ON_SCREEN - 1].direction = LEFT;
-              }
-            }
-            else
-            {
-              stars[i][LINES_ON_SCREEN - 1].direction = previousStar.direction;
-            }
-          }
+          stars[i][LINES_ON_SCREEN - 1].direction = previousStar.direction;
           break;
         default:
-          stars[i][LINES_ON_SCREEN - 1].position = previousStar.position;
-          if (random() % 101 < mutationChance)
-          {
-            if (random() % 2 == 0)
-            {
-              stars[i][LINES_ON_SCREEN - 1].direction = LEFT;
-            }
-            else
-            {
-              stars[i][LINES_ON_SCREEN - 1].direction = RIGHT;
-            }
-          }
-          else
-          {
-            stars[i][LINES_ON_SCREEN - 1].direction = previousStar.direction;
-          }
+          stars[i][LINES_ON_SCREEN - 1].direction = previousStar.direction;
         }
       };
     }
@@ -240,5 +208,10 @@ void loop()
     isPressing = false;
   }
 
-  delay(speedStage * speedStage * 5);
+  // Serial.println("Loop duration: " + String(millis() - timerStart) + " ms");
+
+  if (speedStage != 7)
+  {
+    delay(speedStage * speedStage * 5);
+  }
 }
