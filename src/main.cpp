@@ -5,6 +5,12 @@
 
 // screen drawing take around 216ms at 8MHz, 103ms at 16MHz, 50ms at 32MHz, 22ms at 92MHz
 #define CPU_MHZ 96 // min 32, default 96
+#define DISPLAY_WIDTH 255
+#define DISPLAY_HEIGHT 64
+#define LINES_ON_SCREEN 12
+#define NUMBER_OF_STARS 5
+#define FONT_HEIGHT 8
+#define FONT_WIDTH 5
 
 #define SCL_PIN 4  // clock pin
 #define SDA_PIN 5  // data pin, MOSI pin
@@ -14,7 +20,21 @@
 
 #define LEFT_BUTTON 12
 #define RIGHT_BUTTON 14
+#define MAIN_BUTTON 9
 
+enum Direction
+{
+  LEFT = '/',
+  DOWN = '|',
+  RIGHT = '\\',
+};
+
+struct FallingStar
+{
+  Direction direction = DOWN;
+  int position = 0;
+  char symbol = '|';
+};
 // const char *kDisplayText[] = {
 //   "Paid was hill sir high. For him precaution any advantages dissimilar comparison few terminated projecting. Prevailed discovery immediate objection of ye at. Repair summer one winter living feebly pretty his. In so sense am known these since. Shortly respect ask cousins brought add tedious nay. Expect relied do we genius is. On as around spirit of hearts genius. Is raptures daughter branched laughter peculiar in settling.",
 //   "Abilities forfeited situation extremely my to he resembled. Old had conviction discretion understood put principles you. Match means keeps round one her quick. She forming two comfort invited. Yet she income effect edward. Entire desire way design few. Mrs sentiments led solicitude estimating friendship fat. Meant those event is weeks state it to or. Boy but has folly charm there its. Its fact ten spot drew.",
@@ -30,52 +50,17 @@
 // var char* temporaryText = (char*)malloc(256);
 
 U8G2_SH1122_256X64_F_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/CS_PIN, /* dc=*/DC_PIN, /* reset=*/RST_PIN);
-// U8G2_SH1122_256X64_F_4W_SW_SPI u8g2(U8G2_R0, /* clock=*/SCL_PIN, /* data=*/SDA_PIN, /* cs=*/CS_PIN, /* dc=*/DC_PIN, /* reset=*/RST_PIN);
 int timer = 0;
-const char *kAnimationFrames[] = {"    /|\\    ", "   / | \\   ", "  /  |  \\  ", " /   |   \\ ", "/    |    \\", "\\    |    /", " \\   |   / ", "  \\  |  /  ", "   \\ | /   ", "    \\|/    "};
+const char *kAnimationFrames[] = {"    /|\\    ", "   / | \\   ", "  /  |  \\  ", " /   |   \\ ", "/    |    \\", "\\    |    /", " \\   |   / ", "  \\  |  /  ", "   \\ | /   ", "    \\|/    ", "     X     "};
 const int kTotalAnimationFrames = sizeof(kAnimationFrames) / sizeof(kAnimationFrames[0]);
 const int kFontHeight = 8 - 2;
 int speedStage = 3;
 const char *kSpeedStageFrames[] = {"[______]", "[#_____]", "[##____]", "[###___]", "[####__]", "[#####_]", "[######]"};
 
+FallingStar stars[NUMBER_OF_STARS][LINES_ON_SCREEN] = {};
 bool isPressing = false;
-
-// void printMemoryStats()
-// {
-//   Serial.println(" ------------------------------");
-//   Serial.print("Free Heap: ");
-//   Serial.print(ESP.getFreeHeap());
-//   Serial.println(" bytes");
-
-//   Serial.print("Heap Size: ");
-//   Serial.print(ESP.getHeapSize());
-//   Serial.println(" bytes");
-
-//   Serial.print("Free PSRAM: ");
-//   Serial.print(ESP.getFreePsram());
-//   Serial.println(" bytes");
-
-//   Serial.print("Total PSRAM: ");
-//   Serial.print(ESP.getPsramSize());
-//   Serial.println(" bytes");
-
-//   Serial.print("Flash Size: ");
-//   Serial.print(ESP.getFlashChipSize());
-//   Serial.println(" bytes");
-
-//   Serial.print("Free Sketch Space: ");
-//   Serial.print(ESP.getFreeSketchSpace());
-//   Serial.println(" bytes");
-
-//   Serial.print("CPU Freq: ");
-//   Serial.print(ESP.getCpuFreqMHz());
-//   Serial.println(" MHz");
-
-//   Serial.print("Xtal Freq: ");
-//   Serial.print(getXtalFrequencyMhz());
-//   Serial.println(" MHz");
-//   Serial.println(" ------------------------------");
-// }
+bool isRandomPattern = false;
+int mutationChance = 10;
 
 void setup()
 {
@@ -92,61 +77,168 @@ void setup()
   u8g2.setFont(u8g2_font_5x8_tf);
   pinMode(LEFT_BUTTON, INPUT_PULLUP);
   pinMode(RIGHT_BUTTON, INPUT_PULLUP);
+  pinMode(MAIN_BUTTON, INPUT_PULLUP);
+  int starsSpacing = DISPLAY_WIDTH / NUMBER_OF_STARS;
+  for (int i = 0; i < NUMBER_OF_STARS; i++)
+  {
+    for (int j = 0; j < LINES_ON_SCREEN; j++)
+    {
+      stars[i][j].position = i * starsSpacing;
+    }
+  }
 }
-
-// int frameCount = 0;
-// static unsigned long last = millis();
 
 void loop()
 {
-  unsigned long loopTimerStart = millis();
-
   // u8g2.setFont(u8g2_font_5x8_tf); compact 5x8; 7 lines in 64px
   // u8g2.setFont(u8g2_font_courR08_tf); good but bigger 7x11
   // u8g2.setFont(u8g2_font_6x10_tf); 6x10
 
   u8g2.clearBuffer();
-  for (int i = 0; i < 12; i++)
-  {
-    u8g2.drawUTF8(122, (i + 1) * kFontHeight - timer % kFontHeight, kAnimationFrames[(i + timer / kFontHeight) % kTotalAnimationFrames]);
-    // u8g2.drawUTF8(0, ((i + 1) * kFontHeight) - timer % (kFontHeight), kAnimationFrames[(i + timer/kFontHeight) % 12]);
-  }
-  timer++;
+  
 
-  u8g2.drawUTF8(0, 10, kSpeedStageFrames[6 - (speedStage - 1)]);
+  if (isRandomPattern)
+  {
+    if (timer % kFontHeight != 0)
+    {
+      // push the stars down
+      for (int i = 0; i < NUMBER_OF_STARS; i++)
+      {
+        for (int j = 0; j < LINES_ON_SCREEN - 1; j++)
+        {
+          stars[i][j].direction = stars[i][j + 1].direction;
+          stars[i][j].position = stars[i][j + 1].position;
+        }
+      };
+      
+      // make new stars below
+      for (int i = 0; i < NUMBER_OF_STARS; i++)
+      {
+        FallingStar &previousStar = stars[i][LINES_ON_SCREEN - 1];
+
+        switch (previousStar.direction)
+        {
+        case LEFT:
+          stars[i][LINES_ON_SCREEN - 1].position--;
+          if (stars[i][LINES_ON_SCREEN - 1].position < 0)
+          {
+            stars[i][LINES_ON_SCREEN - 1].position = 0;
+            stars[i][LINES_ON_SCREEN - 1].direction = RIGHT;
+          }
+          else
+          {
+            if (random() % 101 < mutationChance)
+            {
+              if (random() % 2 == 0)
+              {
+                stars[i][LINES_ON_SCREEN - 1].direction = DOWN;
+              }
+              else
+              {
+                stars[i][LINES_ON_SCREEN - 1].direction = RIGHT;
+              }
+            }
+            else
+            {
+              stars[i][LINES_ON_SCREEN - 1].direction = previousStar.direction;
+            }
+          }
+          break;
+        case RIGHT:
+          stars[i][LINES_ON_SCREEN - 1].position++;
+          if (stars[i][LINES_ON_SCREEN - 1].position > DISPLAY_WIDTH - 5)
+          {
+            stars[i][LINES_ON_SCREEN - 1].position--;
+            stars[i][LINES_ON_SCREEN - 1].direction = LEFT;
+          }
+          else
+          {
+            if (random() % 101 < mutationChance)
+            {
+              if (random() % 2 == 0)
+              {
+                stars[i][LINES_ON_SCREEN - 1].direction = DOWN;
+              }
+              else
+              {
+                stars[i][LINES_ON_SCREEN - 1].direction = LEFT;
+              }
+            }
+            else
+            {
+              stars[i][LINES_ON_SCREEN - 1].direction = previousStar.direction;
+            }
+          }
+          break;
+        default:
+          stars[i][LINES_ON_SCREEN - 1].position = previousStar.position;
+          if (random() % 101 < mutationChance)
+          {
+            if (random() % 2 == 0)
+            {
+              stars[i][LINES_ON_SCREEN - 1].direction = LEFT;
+            }
+            else
+            {
+              stars[i][LINES_ON_SCREEN - 1].direction = RIGHT;
+            }
+          }
+          else
+          {
+            stars[i][LINES_ON_SCREEN - 1].direction = previousStar.direction;
+          }
+        }
+      };
+    }
+
+    for (int i = 0; i < NUMBER_OF_STARS; i++)
+    {
+      for (int j = 0; j < LINES_ON_SCREEN; j++)
+      {
+        u8g2.drawUTF8(stars[i][j].position, (j + 1) * kFontHeight - timer % kFontHeight, std::string(1, stars[i][j].direction).c_str());
+      }
+    }
+  }
+  else
+  {
+    for (int i = 0; i < LINES_ON_SCREEN; i++)
+    {
+      u8g2.drawUTF8(120, (i + 1) * kFontHeight - timer % kFontHeight, kAnimationFrames[(i + timer / kFontHeight) % kTotalAnimationFrames]);
+    }
+  }
+  u8g2.drawUTF8(0, 10, kSpeedStageFrames[7 - speedStage]);
+
+  timer++;
   if (timer > 1280)
     timer = 0;
 
-  unsigned long screenTimerStart = millis();
   u8g2.sendBuffer();
-  unsigned long duration = millis() - screenTimerStart;
-
-  // Serial.print("Screen render time: ");
-  // Serial.print(duration);
-  // Serial.println(" ms");
-
-  // Serial.print("Loop time: ");
-  // Serial.print(millis() - loopTimerStart);
-  // Serial.println(" ms");
 
   if (digitalRead(LEFT_BUTTON) == LOW && !isPressing)
   {
     speedStage = min(7, speedStage + 1);
-    Serial.println("speed decreased to: " + String(speedStage));
+    Serial.println("speed decreased to: " + String(7 - speedStage));
     isPressing = true;
   }
   else if (digitalRead(RIGHT_BUTTON) == LOW && !isPressing)
   {
     speedStage = max(1, speedStage - 1);
-    Serial.println("speed increased to: " + String(speedStage));
+    Serial.println("speed increased to: " + String(7 - speedStage));
+    isPressing = true;
+  }
+  else if (digitalRead(MAIN_BUTTON) == LOW && !isPressing)
+  {
+    Serial.println("pressing main");
+    isRandomPattern = !isRandomPattern;
+    u8g2.clearBuffer();
+    u8g2.clearDisplay();
+
     isPressing = true;
   }
   else if (digitalRead(LEFT_BUTTON) == HIGH && digitalRead(RIGHT_BUTTON) == HIGH)
   {
     isPressing = false;
   }
-
-  // Serial.println(ESP.getCpuFreqMHz());
 
   delay(speedStage * speedStage * 5);
 }
