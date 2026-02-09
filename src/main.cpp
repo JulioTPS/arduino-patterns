@@ -174,7 +174,11 @@ void loop()
       u8g2.drawUTF8(120, (i + 1) * kFontHeight - timer % kFontHeight, kAnimationFrames[(i + timer / kFontHeight) % kTotalAnimationFrames]);
     }
   }
-  u8g2.drawUTF8(0, 10, kSpeedStageFrames[7 - speedStage]);
+
+  u8g2.setDrawColor(0);
+  u8g2.drawBox(0, 0, 41, 10);
+  u8g2.setDrawColor(1);
+  u8g2.drawUTF8(0, 8, kSpeedStageFrames[7 - speedStage]);
 
   timer++;
   if (timer > 1280)
