@@ -49,13 +49,25 @@ struct FallingStar
 
 U8G2_SH1122_256X64_F_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/CS_PIN, /* dc=*/DC_PIN, /* reset=*/RST_PIN);
 int timer = 0;
-const char *kAnimationFrames[] = {"    /|\\    ", "   / | \\   ", "  /  |  \\  ", " /   |   \\ ", "/    |    \\", "\\    |    /", " \\   |   / ", "  \\  |  /  ", "   \\ | /   ", "    \\|/    ", "     X     "};
+const char *kAnimationFrames[] = {"    /|\\    ",
+                                  "   / | \\   ",
+                                  "  /  |  \\  ",
+                                  " /   |   \\ ",
+                                  "/    |    \\",
+                                  "\\    |    /",
+                                  " \\   |   / ",
+                                  "  \\  |  /  ",
+                                  "   \\ | /   ",
+                                  "    \\|/    ",
+                                  "     X     "};
 const int kTotalAnimationFrames = sizeof(kAnimationFrames) / sizeof(kAnimationFrames[0]);
 const int kFontHeight = 8 - 2;
 const int kFontWidth = 5 - 1;
 
 int speedStage = 3;
-const char *kSpeedStageFrames[] = {"[______]", "[#_____]", "[##____]", "[###___]", "[####__]", "[#####_]", "[######]"};
+const char *kSpeedStageFrames[] = {"[######]", "[_#####]", "[__####]",
+                                   "[___###]", "[____##]", "[_____#]",
+                                   "[______]"};
 
 FallingStar stars[NUMBER_OF_STARS][LINES_ON_SCREEN] = {};
 bool isPressing = false;
@@ -178,7 +190,10 @@ void loop()
   u8g2.setDrawColor(0);
   u8g2.drawBox(0, 0, 41, 10);
   u8g2.setDrawColor(1);
-  u8g2.drawUTF8(0, 8, kSpeedStageFrames[7 - speedStage]);
+  // u8g2.drawUTF8(0, 8, kSpeedStageFrames[speedStage]);
+  u8g2.drawGlyph(0, 8, '[');
+  u8g2.drawGlyph(27, 8, ']');
+  u8g2.drawBox(1, 3, 5 * (6 - speedStage), 4);
 
   timer++;
   if (timer > 1280)
@@ -188,14 +203,14 @@ void loop()
 
   if (digitalRead(LEFT_BUTTON) == LOW && !isPressing)
   {
-    speedStage = min(7, speedStage + 1);
-    Serial.println("speed decreased to: " + String(7 - speedStage));
+    speedStage = min(6, speedStage + 1);
+    Serial.println("delay factor increased to: " + String(speedStage));
     isPressing = true;
   }
   else if (digitalRead(RIGHT_BUTTON) == LOW && !isPressing)
   {
-    speedStage = max(1, speedStage - 1);
-    Serial.println("speed increased to: " + String(7 - speedStage));
+    speedStage = max(0, speedStage - 1);
+    Serial.println("delay factor decreased to: " + String(speedStage));
     isPressing = true;
   }
   else if (digitalRead(MAIN_BUTTON) == LOW && !isPressing)
@@ -204,6 +219,7 @@ void loop()
     isRandomPattern = !isRandomPattern;
     u8g2.clearBuffer();
     u8g2.clearDisplay();
+    delay(500);
 
     isPressing = true;
   }
@@ -214,7 +230,7 @@ void loop()
 
   // Serial.println("Loop duration: " + String(millis() - timerStart) + " ms");
 
-  if (speedStage != 7)
+  if (speedStage != 0)
   {
     delay(speedStage * speedStage * 5);
   }
